@@ -11,6 +11,10 @@ import java.util.List;
 
 class FileReaderUtil {
 
+    FileReaderUtil() {
+
+    }
+
     float[][] getIndicatorsValues(String fileName, String sheetName, int peopleNumber) {
         final int indicatorsNumber = 14;
         XSSFSheet myExcelSheet = null;
@@ -55,12 +59,4 @@ class FileReaderUtil {
         return indicators;
     }
 
-    void printMatrix(float[][] matrix) {
-        for (float[] row : matrix) {
-            for (float el : row) {
-                System.out.print(el + " ");
-            }
-            System.out.println();
-        }
-    }
 }
