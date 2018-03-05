@@ -49,7 +49,7 @@ public class FileReaderUtil {
      *
      * @return  список признаков
      */
-    public static List<String> getFeatures() {
+    public List<String> getFeatures() {
         XSSFSheet myExcelSheet = null;
 
         try {

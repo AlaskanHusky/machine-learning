@@ -1,41 +1,74 @@
 package by.fselection;
 
-import by.fselection.Util.CollectionUtil;
 import by.fselection.Util.FileReaderUtil;
 import by.fselection.Util.MatrixUtil;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
+/**
+ * Класс для простого отбора информативных признаков
+ * объектов двух классов.
+ */
 class SimpleFeatureSelection {
-    private MatrixUtil matrixUtil = new MatrixUtil();
-    private FileReaderUtil fileReader = new FileReaderUtil();
+    private MatrixUtil matrixUtil;
+    private FileReaderUtil fileReader;
+    private List<String> featuresList;
+    private float[][] healthyMatrix;
+    private float[][] sickMatrix;
 
+    /**
+     * Конструктор класса, который считывает признаки
+     * и их значения из файла и заполняет этими данными
+     * поля класса.
+     */
     SimpleFeatureSelection() {
-
+        matrixUtil = new MatrixUtil();
+        fileReader = new FileReaderUtil();
+        featuresList = fileReader.getFeatures();
+        healthyMatrix = matrixUtil.splitMatrix(getNormalizationMatrix(), 0, 26);
+        sickMatrix = matrixUtil.splitMatrix(getNormalizationMatrix(), 26, 54);
     }
 
-    Map<String, Float> featureEvaluation() {
-        // Текстовый список признаков
-        List<String> features = FileReaderUtil.getFeatures();
-        /*
-            Коэффициенты близости. Данная величина показывает степень совпадения значений одного класса с другим.
-            Чем меньше значения, тем информативнее признак.
-            То есть значение 0.2 говорит о том, что этот признак информативнее, чем признак со значением 0.6.
-        */
-        List<Float> coeffs = calculateFeaturesCoefficients();
+    /**
+     * По формуле находит информативные признаки из списка.
+     * Если пространство решений каждого класса намного
+     * больше пространства пересечения, то признак
+     * достаточно информативен.
+     *
+     * @param   features  список признаков и их коэффициенты
+     * @return            список информативных признаков
+     */
+    List<Element> getInformativeFeatures(List<Element> features) {
+        List<Element> informativeFeatures = new ArrayList<>();
 
-        return CollectionUtil.convertToMap(features, coeffs);
+        for (int i = 0; i < features.size(); i++) {
+            float healthyValuesRange = MatrixUtil.getFeatureRange(healthyMatrix[i]);
+            float sickValuesRange = MatrixUtil.getFeatureRange(sickMatrix[i]);
+            float newCoeff = features.get(i).getCoeff() * 2;
+            if (healthyValuesRange > newCoeff && sickValuesRange > newCoeff) {
+                informativeFeatures.add(features.get(i));
+            }
+        }
+
+        return informativeFeatures;
     }
 
+    /**
+     * По формуле находит информативные пары признаков из списка.
+     * Если пространство решений каждого класса намного
+     * больше пространства пересечения, то признак
+     * достаточно информативен.
+     *
+     * @param   pairFeatures  список пар признаков и их коэффициенты
+     * @return                список информативных пар признаков
+     */
     List<Element> getInformativePairs(List<Element> pairFeatures) {
-        float[][] healthyMatrix = getHealthyNormalizedMatrix();
-        float[][] sickMatrix = getSickNormalizedMatrix();
-        List<String> features = FileReaderUtil.getFeatures();
         List<Element> informPair = new ArrayList<>();
 
         for (Element el : pairFeatures) {
-            int firstFeatureIndex = features.indexOf(el.getFirstFeature());
-            int secondFeatureIndex = features.indexOf(el.getSecondFeature());
+            int firstFeatureIndex = featuresList.indexOf(el.getFirstFeature());
+            int secondFeatureIndex = featuresList.indexOf(el.getSecondFeature());
             float healthyArea = MatrixUtil.getFeaturesArea(healthyMatrix[firstFeatureIndex], healthyMatrix[secondFeatureIndex]);
             float sickArea = MatrixUtil.getFeaturesArea(sickMatrix[firstFeatureIndex], sickMatrix[secondFeatureIndex]);
             float newCoeff = el.getCoeff() * 2;
@@ -47,21 +80,51 @@ class SimpleFeatureSelection {
         return informPair;
     }
 
+    /**
+     * По формуле находит коэффициенты признаков.
+     * Коэффициент указывает на сколько сильно пересекаются
+     * пространства решений здоровых и больных для одного
+     * признака. Чем меньше это значение, тем информативнее
+     * признак.
+     *
+     * @return  список признаков и их коэффициентов
+     */
+    List<Element> calculateFeaturesCoefficients() {
+        List<Element> coeffs = new ArrayList<>();
+
+        for (int i = 0; i < featuresList.size(); i++) {
+            float healthyMax = MatrixUtil.getMaxValue(healthyMatrix[i]);
+            float sickMin = MatrixUtil.getMinValue(sickMatrix[i]);
+            float coeff = healthyMax - sickMin;
+            Element el = new Element();
+            el.setFirstFeature(featuresList.get(i));
+            el.setCoeff(coeff);
+            coeffs.add(el);
+        }
+
+        return coeffs;
+    }
+
+    /**
+     * По формуле находит коэффициенты парных признаков.
+     * Коэффициент указывает на сколько сильно пересекаются
+     * пространства решений здоровых и больных для двух
+     * признаков. Чем меньше это значение, тем информативнее
+     * признак.
+     *
+     * @return  список парных признаков и их коэффициентов
+     */
     List<Element> calculatePairFeaturesCoefficients() {
-        float[][] healthyMatrix = getHealthyNormalizedMatrix();
-        float[][] sickMatrix = getSickNormalizedMatrix();
-        List<String> features = FileReaderUtil.getFeatures();
-        int rowsNumber = healthyMatrix.length;
         List<Element> pairFeatures = new ArrayList<>();
 
-        for (int i = 0; i < rowsNumber; i++) {
-            for (int j = i + 1; j < rowsNumber; j++) {
+        for (int i = 0; i < featuresList.size(); i++) {
+            for (int j = i + 1; j < featuresList.size(); j++) {
                 Element el = new Element();
                 float width = MatrixUtil.getMaxValue(healthyMatrix[i]) - MatrixUtil.getMinValue(sickMatrix[i]);
                 float length = MatrixUtil.getMaxValue(healthyMatrix[j]) - MatrixUtil.getMinValue(sickMatrix[j]);
                 float coeff = width * length;
-                el.setFirstFeature(features.get(i));
-                el.setSecondFeature(features.get(j));
+                el.setFirstFeature(featuresList.get(i));
+                el.setSecondFeature(featuresList.get(j));
                 el.setCoeff(coeff);
                 pairFeatures.add(el);
             }
@@ -70,30 +133,23 @@ class SimpleFeatureSelection {
         return pairFeatures;
     }
 
-    List<Integer> getFeaturesIndexes() {
-        List<Integer> indexes = new ArrayList<>();
-        List<Float> coeffs = calculateFeaturesCoefficients();
-        float[][] healthyMatrix = getHealthyNormalizedMatrix();
-        float[][] sickMatrix = getSickNormalizedMatrix();
-
-        for (int i = 0; i < coeffs.size(); i++) {
-            float healthyValuesRange = MatrixUtil.getMaxValue(healthyMatrix[i]) - MatrixUtil.getMinValue(healthyMatrix[i]);
-            float sickValuesRange = MatrixUtil.getMaxValue(sickMatrix[i]) - MatrixUtil.getMinValue(sickMatrix[i]);
-            float newCoeff = coeffs.get(i) * 2;
-            if (healthyValuesRange > newCoeff && sickValuesRange > newCoeff) {
-                indexes.add(i);
-            }
-        }
-
-        return indexes;
-    }
-
-    void printFeatures(Map<String, Float> map) {
-        for (Map.Entry<String, Float> entry : map.entrySet()) {
-            System.out.println(entry.getKey() + ": " + entry.getValue());
+    /**
+     * Выводит в консоль признаки и их коэффициенты.
+     *
+     * @param  features  список прихнаков и их коэффициентов
+     */
+    void printFeatures(List<Element> features) {
+        for (Element feature : features) {
+            System.out.println(feature.getFirstFeature() + ": " + feature.getCoeff());
         }
     }
 
+    /**
+     * Выводит в консоль парные признаки и их коэффициенты.
+     *
+     * @param  pairFeatures  список парных прихнаков и их
+     *                       коэффициентов
+     */
     void printPairFeatures(List<Element> pairFeatures) {
         for (Element pairFeature : pairFeatures) {
             System.out.println(pairFeature.getFirstFeature() + " и " +
@@ -101,30 +157,11 @@ class SimpleFeatureSelection {
         }
     }
 
-    private List<Float> calculateFeaturesCoefficients() {
-        float[][] healthyMatrix = getHealthyNormalizedMatrix();
-        float[][] sickMatrix = getSickNormalizedMatrix();
-        int featuresNumber = healthyMatrix.length;
-        List<Float> coeffs = new ArrayList<>();
-
-        for (int i = 0; i < featuresNumber; i++) {
-            float healthyMax = MatrixUtil.getMaxValue(healthyMatrix[i]);
-            float sickMin = MatrixUtil.getMinValue(sickMatrix[i]);
-            Float coeff = healthyMax - sickMin;
-            coeffs.add(coeff);
-        }
-
-        return coeffs;
-    }
-
-    private float[][] getHealthyNormalizedMatrix() {
-        return matrixUtil.splitMatrix(getNormalizationMatrix(), 0, 26);
-    }
-
-    private float[][] getSickNormalizedMatrix() {
-        return matrixUtil.splitMatrix(getNormalizationMatrix(), 26, 54);
-    }
-
+    /**
+     * Считывает данные из файла, формирует матрицу и нормализует её.
+     *
+     * @return  нормализованная матрица
+     */
     private float[][] getNormalizationMatrix() {
         float[][] healthyMatrix = fileReader.getHealthyFeaturesValues();
         float[][] sickMatrix = fileReader.getSickFeaturesValues();

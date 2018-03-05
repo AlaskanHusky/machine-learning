@@ -1,34 +1,21 @@
 package by.fselection;
 
-import by.fselection.Util.CollectionUtil;
-import by.fselection.Util.FileReaderUtil;
-
 import java.util.List;
-import java.util.Map;
 
 public class Main {
 
     public static void main(String[] args) {
         SimpleFeatureSelection featureSelection = new SimpleFeatureSelection();
-        Map<String, Float> featuresAndKeys = featureSelection.featureEvaluation();
-        Map<String, Float> sortedFeatures = CollectionUtil.sortMap(featuresAndKeys);
+        List<Element> coeffs = featureSelection.calculateFeaturesCoefficients();
+        List<Element> informativeFeatures = featureSelection.getInformativeFeatures(coeffs);
 
-        System.out.println("_____ Признаки и их коэффициенты (Отсортированные по убыванию информативности) _____");
-        featureSelection.printFeatures(sortedFeatures);
-
-        List<Integer> featuresIndexes = featureSelection.getFeaturesIndexes();
-        List<String> features = FileReaderUtil.getFeatures();
-        System.out.println("_____ Информативные признаки _____");
-
-        for (int i = 0; i < featuresAndKeys.size(); i++) {
-            if(featuresIndexes.contains(i))
-            System.out.println(features.get(i));
-        }
+        System.out.println("_____ Информативные признаки и их коэффициенты_____");
+        featureSelection.printFeatures(informativeFeatures);
 
         List<Element> pairCoeffs = featureSelection.calculatePairFeaturesCoefficients();
-        List<Element> informativeFeatures = featureSelection.getInformativePairs(pairCoeffs);
+        List<Element> informativePairFeatures = featureSelection.getInformativePairs(pairCoeffs);
 
         System.out.println("_____ Информативные пары признаков и их коэффициенты _____");
-        featureSelection.printPairFeatures(informativeFeatures);
+        featureSelection.printPairFeatures(informativePairFeatures);
     }
 }
